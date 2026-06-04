@@ -1,3 +1,5 @@
+import { useTranslations } from "next-intl";
+
 export interface Medicine {
     id: string;
     brand_name: string | null;
@@ -30,11 +32,11 @@ function displayName(m: Medicine): string {
     return m.brand_name?.trim() || m.generic_name;
 }
 
-function formatStatus(status: string): string {
+function formatStatus(status: string, t: ReturnType<typeof useTranslations>): string {
     const map: Record<string, string> = {
-        approved: "Approved",
-        recalled: "Recalled",
-        banned: "Banned",
+        approved: t("status.approved"),
+        recalled: t("status.recalled"),
+        banned: t("status.banned"),
     };
     return map[status.toLowerCase()] ?? status;
 }
@@ -55,22 +57,22 @@ function computeSavingsPercent(higher: number, lower: number): number {
     return ((higher - lower) / higher) * 100;
 }
 
-function formatPrice(value: number | null | undefined): string {
-    return value != null ? `₹${value.toFixed(2)}` : "Price unavailable";
+function formatPrice(value: number | null | undefined, unavailableText: string): string {
+    return value != null ? `₹${value.toFixed(2)}` : unavailableText;
 }
 
-function getSavingsText(medicine: Medicine | null): string {
+function getSavingsText(medicine: Medicine | null, t: ReturnType<typeof useTranslations>): string {
     if (!medicine || !hasValidMrp(medicine) || !hasValidJanAushadhiPrice(medicine)) {
-        return "Price unavailable";
+        return t("priceUnavailable");
     }
 
     if (medicine.mrp <= medicine.jan_aushadhi_price) {
-        return "No savings";
+        return t("noSavings");
     }
 
     const amount = medicine.mrp - medicine.jan_aushadhi_price;
     const percent = computeSavingsPercent(medicine.mrp, medicine.jan_aushadhi_price);
-    return `Save ₹${amount.toFixed(2)} (${percent.toFixed(1)}%)`;
+    return t("saveAmount", { amount: amount.toFixed(2), percent: percent.toFixed(1) });
 }
 
 export default function ComparisonGrid({
@@ -80,34 +82,41 @@ export default function ComparisonGrid({
     medicine1: Medicine | null;
     medicine2: Medicine | null;
 }) {
+    const t = useTranslations("Compare");
+
     if (!medicine1 && !medicine2) {
         return (
             <div className="rounded-xl border border-dashed border-slate-200 bg-white py-14 text-center text-slate-500">
-                Select two medicines above to see the comparison.
+                {t("emptyComparison")}
             </div>
         );
     }
 
     const rows: { label: string; getValue: (m: Medicine) => string }[] = [
-        { label: "Brand name", getValue: (m) => m.brand_name?.trim() || "—" },
-        { label: "Generic name", getValue: (m) => m.generic_name },
-        { label: "Composition", getValue: (m) => m.composition?.trim() || "—" },
-        { label: "Manufacturer", getValue: (m) => m.manufacturer },
+        { label: t("rows.brandName"), getValue: (m) => m.brand_name?.trim() || "—" },
+        { label: t("rows.genericName"), getValue: (m) => m.generic_name },
+        { label: t("rows.composition"), getValue: (m) => m.composition?.trim() || "—" },
+        { label: t("rows.manufacturer"), getValue: (m) => m.manufacturer },
         {
-            label: "Type",
-            getValue: (m) => m.medicine_type ?? (m.brand_name?.trim() ? "Brand" : "Generic"),
+            label: t("rows.type"),
+            getValue: (m) =>
+                m.medicine_type ??
+                (m.brand_name?.trim() ? t("medicineTypes.brand") : t("medicineTypes.generic")),
         },
         {
-            label: "CDSCO status",
-            getValue: (m) => formatStatus(m.cdsco_approval_status),
+            label: t("rows.cdscoStatus"),
+            getValue: (m) => formatStatus(m.cdsco_approval_status, t),
         },
-        { label: "Expiry date", getValue: (m) => formatExpiry(m.expiry_date) },
-        { label: "Market price (MRP)", getValue: (m) => formatPrice(m.mrp) },
+        { label: t("rows.expiryDate"), getValue: (m) => formatExpiry(m.expiry_date) },
         {
-            label: "Jan Aushadhi price",
-            getValue: (m) => formatPrice(m.jan_aushadhi_price),
+            label: t("rows.marketPrice"),
+            getValue: (m) => formatPrice(m.mrp, t("priceUnavailable")),
         },
-        { label: "Savings vs MRP", getValue: (m) => getSavingsText(m) },
+        {
+            label: t("rows.janAushadhiPrice"),
+            getValue: (m) => formatPrice(m.jan_aushadhi_price, t("priceUnavailable")),
+        },
+        { label: t("rows.savings"), getValue: (m) => getSavingsText(m, t) },
     ];
 
     return (
@@ -116,13 +125,13 @@ export default function ComparisonGrid({
                 <thead>
                     <tr className="border-b border-slate-200 bg-slate-50">
                         <th className="w-1/4 px-5 py-3 text-left text-xs font-semibold tracking-wide text-slate-500 uppercase">
-                            Field
+                            {t("fieldHeader")}
                         </th>
                         <th className="px-5 py-3 text-center text-sm font-semibold text-slate-800">
-                            {medicine1 ? displayName(medicine1) : "Medicine A"}
+                            {medicine1 ? displayName(medicine1) : t("medicineA")}
                         </th>
                         <th className="px-5 py-3 text-center text-sm font-semibold text-slate-800">
-                            {medicine2 ? displayName(medicine2) : "Medicine B"}
+                            {medicine2 ? displayName(medicine2) : t("medicineB")}
                         </th>
                     </tr>
                 </thead>

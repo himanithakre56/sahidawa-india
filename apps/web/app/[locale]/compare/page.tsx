@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/routing";
 import { PageHeader } from "../components/PageHeader";
 import ComparisonGrid, { type Medicine } from "@/src/components/ComparisonGrid";
@@ -28,6 +29,7 @@ async function searchMedicines(query: string): Promise<Medicine[]> {
 }
 
 export default function ComparePage() {
+    const t = useTranslations("Compare");
     const [medicine1, setMedicine1] = useState<Medicine | null>(null);
     const [medicine2, setMedicine2] = useState<Medicine | null>(null);
     const handleSearch = useCallback((q: string) => searchMedicines(q), []);
@@ -35,8 +37,8 @@ export default function ComparePage() {
     return (
         <div className="min-h-screen bg-(--color-surface-muted) text-(--color-text-primary)">
             <PageHeader
-                title="Compare medicines"
-                subtitle="Brand vs generic side by side"
+                title={t("pageTitle")}
+                subtitle={t("pageSubtitle")}
                 backHref="/"
                 variant="light"
             />
@@ -44,16 +46,18 @@ export default function ComparePage() {
                 <section className="rounded-xl border border-(--color-border-muted) bg-(--color-surface-page) p-5 transition-all duration-300 hover:border-emerald-500/20 hover:shadow-md">
                     <div className="grid gap-4 sm:grid-cols-2">
                         <MedicineSearchSelect
-                            label="First medicine"
+                            label={t("firstMedicine")}
                             value={medicine1}
                             onChange={setMedicine1}
                             onSearch={handleSearch}
+                            placeholder={t("searchPlaceholder")}
                         />
                         <MedicineSearchSelect
-                            label="Second medicine"
+                            label={t("secondMedicine")}
                             value={medicine2}
                             onChange={setMedicine2}
                             onSearch={handleSearch}
+                            placeholder={t("searchPlaceholder")}
                         />
                     </div>
                 </section>
@@ -63,7 +67,7 @@ export default function ComparePage() {
                         href="/map"
                         className="text-emerald-700 hover:underline dark:text-emerald-400"
                     >
-                        Find pharmacies
+                        {t("findPharmacies")}
                     </Link>
                 </p>
             </main>
