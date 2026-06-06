@@ -27,6 +27,56 @@ export default function VaccineHubPage() {
         });
     };
 
+    const exportToCalendar = () => {
+        if (!vaccine || !initialDate) return;
+
+        const events = vaccine.dosing_intervals_weeks
+            .map((weeks, index) => {
+                const date = new Date(initialDate);
+                date.setDate(date.getDate() + weeks * 7);
+
+                const endDate = new Date(date);
+                endDate.setDate(endDate.getDate() + 1);
+
+                const formatICSDate = (d: Date) =>
+                    d.getFullYear().toString() +
+                    String(d.getMonth() + 1).padStart(2, "0") +
+                    String(d.getDate()).padStart(2, "0");
+
+                return [
+                    "BEGIN:VEVENT",
+                    `SUMMARY:SahiDawa - ${vaccine.disease_name} Dose ${index + 1}`,
+                    `DTSTART;VALUE=DATE:${formatICSDate(date)}`,
+                    `DTEND;VALUE=DATE:${formatICSDate(endDate)}`,
+                    "END:VEVENT",
+                ].join("\r\n");
+            })
+            .join("\r\n");
+
+        const icsContent = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//SahiDawa//Vaccine Hub//EN",
+            "CALSCALE:GREGORIAN",
+            events,
+            "END:VCALENDAR",
+        ].join("\r\n");
+
+        const blob = new Blob([icsContent], { type: "text/calendar;charset=utf-8" });
+
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "vaccine-schedule.ics";
+
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <>
             <PageHeader
@@ -171,6 +221,14 @@ export default function VaccineHubPage() {
                             <h3 className="flex items-center gap-1.5 text-lg font-bold text-(--color-text-primary)">
                                 <span>📅</span> Immunization Schedule Layout
                             </h3>
+
+                            <button
+                                onClick={exportToCalendar}
+                                disabled={!initialDate}
+                                className="rounded-lg bg-emerald-600 px-4 py-2 text-white"
+                            >
+                                Export to Calendar
+                            </button>
 
                             {/* GENERATED DOSES RENDER LOOP */}
                             <div className="space-y-3">
