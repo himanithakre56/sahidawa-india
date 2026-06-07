@@ -28,12 +28,7 @@ export async function generateMetadata({
 
     // Generate alternates for all locales
     const alternates = {
-        languages: Object.fromEntries(
-            routing.locales.map((lang) => [
-                lang,
-                locale === routing.defaultLocale ? `${baseUrl}/${lang}` : `${baseUrl}/${lang}`,
-            ])
-        ),
+        languages: Object.fromEntries(routing.locales.map((lang) => [lang, `${baseUrl}/${lang}`])),
     };
 
     // Add x-default for default locale
