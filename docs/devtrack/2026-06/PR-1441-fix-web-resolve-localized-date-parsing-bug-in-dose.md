@@ -19,20 +19,20 @@ Prior to this change, our system was susceptible to a common date parsing bug wh
 The core of this change lies in standardizing the internal representation of dates within the `DoseSchedule` component to raw `Date` objects.
 
 1.  **`calculateMilestoneDate` Function:**
-    *   The return type of `calculateMilestoneDate` was updated from `string | null` to `Date | null`.
-    *   The function now returns the `targetDate` as a raw `Date` object directly, after calculating it based on `initialDate` and `weeksOffset`.
-    *   The call to `targetDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })` was removed from this function.
+    - The return type of `calculateMilestoneDate` was updated from `string | null` to `Date | null`.
+    - The function now returns the `targetDate` as a raw `Date` object directly, after calculating it based on `initialDate` and `weeksOffset`.
+    - The call to `targetDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })` was removed from this function.
 
 2.  **`getDoseStatus` Function:**
-    *   The parameter `dateString: string | null` was changed to `doseDate: Date | null`.
-    *   The line `const doseDate = new Date(dateString);` was removed, as the function now directly receives a `Date` object.
-    *   A new local variable `targetDate` was introduced (`const targetDate = new Date(doseDate.getTime());`) to create a copy of the input `doseDate` before modifying its hours, minutes, seconds, and milliseconds to ensure comparisons are purely date-based and avoid mutating the original `doseDate` object.
-    *   The comparison logic (`targetDate.getTime() === today.getTime()` and `targetDate.getTime() < today.getTime()`) remains the same but now operates consistently on `Date` objects.
+    - The parameter `dateString: string | null` was changed to `doseDate: Date | null`.
+    - The line `const doseDate = new Date(dateString);` was removed, as the function now directly receives a `Date` object.
+    - A new local variable `targetDate` was introduced (`const targetDate = new Date(doseDate.getTime());`) to create a copy of the input `doseDate` before modifying its hours, minutes, seconds, and milliseconds to ensure comparisons are purely date-based and avoid mutating the original `doseDate` object.
+    - The comparison logic (`targetDate.getTime() === today.getTime()` and `targetDate.getTime() < today.getTime()`) remains the same but now operates consistently on `Date` objects.
 
 3.  **JSX Rendering Logic:**
-    *   The variable `dateString` used in the component's JSX was renamed to `milestoneDate` to reflect its new type (`Date | null`).
-    *   The `calculateMilestoneDate(weeks)` function call now correctly assigns a `Date` object to `milestoneDate`.
-    *   Within the rendering block for each dose, the `toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })` method is now called directly on `milestoneDate` only when the date needs to be displayed to the user. This ensures that localization happens precisely at the presentation layer.
+    - The variable `dateString` used in the component's JSX was renamed to `milestoneDate` to reflect its new type (`Date | null`).
+    - The `calculateMilestoneDate(weeks)` function call now correctly assigns a `Date` object to `milestoneDate`.
+    - Within the rendering block for each dose, the `toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })` method is now called directly on `milestoneDate` only when the date needs to be displayed to the user. This ensures that localization happens precisely at the presentation layer.
 
 ## Technical Decisions
 
@@ -48,9 +48,10 @@ To re-implement this pattern for date handling in other parts of our frontend:
 
 1.  **Identify Date-Dependent Logic:** Locate any functions or components that perform date calculations, comparisons, or store dates.
 2.  **Standardize to `Date` Objects:** Ensure that these functions consistently accept and return raw JavaScript `Date` objects. Avoid passing date strings between functions for internal logic.
-    *   *Example:* If a function calculates a future date, it should return `new Date(...)`, not `new Date(...).toLocaleDateString(...)`.
+    - _Example:_ If a function calculates a future date, it should return `new Date(...)`, not `new Date(...).toLocaleDateString(...)`.
 3.  **Separate Formatting:** Only convert a `Date` object to a localized string at the very last moment, when it needs to be displayed in the UI.
-    *   *Code Pattern:*
+    - _Code Pattern:_
+
         ```typescript
         // Internal logic: operates on Date objects
         const calculatedDate: Date | null = calculateSomeDate(inputDate);
@@ -68,6 +69,7 @@ To re-implement this pattern for date handling in other parts of our frontend:
             <span>N/A</span>
         )}
         ```
+
 4.  **Handle `null` or `undefined` Dates:** Always check for `null` or `undefined` before attempting to call methods on a `Date` object, as seen with `if (milestoneDate)`.
 5.  **Avoid Mutation:** When comparing or manipulating `Date` objects, especially when setting hours/minutes/seconds to zero for day-only comparisons, create a copy of the `Date` object first (e.g., `const copyDate = new Date(originalDate.getTime());`) to prevent unintended side effects on the original object.
 
@@ -79,9 +81,9 @@ This change reinforces a critical architectural principle for our frontend: data
 
 This change was thoroughly verified through existing unit tests. The proof of work included logs demonstrating that all 8 unit tests in `tests/DoseSchedule.test.tsx` passed successfully. These tests cover various scenarios, including:
 
-*   `calculates dates correctly`: Ensures the `calculateMilestoneDate` function correctly computes future dates based on offsets.
-*   `marks past doses as scheduled`: Verifies the `getDoseStatus` logic correctly identifies past dates.
-*   `shows pending state when no date is selected`: Confirms the handling of `null` or missing initial dates.
-*   `handles relative to birth vaccines correctly` and `handles relative to first dose vaccines correctly`: Validates the logic for different vaccine scheduling types.
+- `calculates dates correctly`: Ensures the `calculateMilestoneDate` function correctly computes future dates based on offsets.
+- `marks past doses as scheduled`: Verifies the `getDoseStatus` logic correctly identifies past dates.
+- `shows pending state when no date is selected`: Confirms the handling of `null` or missing initial dates.
+- `handles relative to birth vaccines correctly` and `handles relative to first dose vaccines correctly`: Validates the logic for different vaccine scheduling types.
 
 The passing tests confirm that the refactoring to use raw `Date` objects internally and localize at render time did not introduce regressions and correctly resolved the underlying date parsing bug.

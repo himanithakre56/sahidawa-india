@@ -20,10 +20,10 @@ This change was implemented via a new database migration file, `supabase/migrati
 
 1.  **Enabling RLS:** The `ALTER TABLE public.scan_history ENABLE ROW LEVEL SECURITY;` statement activates Row Level Security for the `scan_history` table. Once RLS is enabled, any role attempting to access the table will be subject to defined policies, and if no policies grant access, the access will be denied by default.
 2.  **Creating a Policy:** A new policy named `scan_history_service_only` is created using the `CREATE POLICY` statement.
-    *   `ON public.scan_history`: Specifies that this policy applies to the `scan_history` table.
-    *   `FOR ALL`: This clause indicates that the policy applies to all types of operations: `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
-    *   `TO service_role`: This is the crucial part that restricts access. The policy grants permissions exclusively to the `service_role`. In our Supabase setup, the `service_role` is an administrative role typically used by our backend services (e.g., the Express API) via the `service_key`, which has elevated privileges and bypasses RLS by default unless explicitly targeted by a policy. Here, we are explicitly granting it access *through* the policy.
-    *   `USING (true) WITH CHECK (true)`: These conditions ensure that the policy is always true for the `service_role`. `USING (true)` applies to `SELECT` and `DELETE` operations, while `WITH CHECK (true)` applies to `INSERT` and `UPDATE` operations. By setting both to `true`, we effectively grant the `service_role` full, unrestricted access to the table, while all other roles (like `anon`) will be denied access by default due to the enabled RLS and the lack of other policies granting them permission.
+    - `ON public.scan_history`: Specifies that this policy applies to the `scan_history` table.
+    - `FOR ALL`: This clause indicates that the policy applies to all types of operations: `SELECT`, `INSERT`, `UPDATE`, and `DELETE`.
+    - `TO service_role`: This is the crucial part that restricts access. The policy grants permissions exclusively to the `service_role`. In our Supabase setup, the `service_role` is an administrative role typically used by our backend services (e.g., the Express API) via the `service_key`, which has elevated privileges and bypasses RLS by default unless explicitly targeted by a policy. Here, we are explicitly granting it access _through_ the policy.
+    - `USING (true) WITH CHECK (true)`: These conditions ensure that the policy is always true for the `service_role`. `USING (true)` applies to `SELECT` and `DELETE` operations, while `WITH CHECK (true)` applies to `INSERT` and `UPDATE` operations. By setting both to `true`, we effectively grant the `service_role` full, unrestricted access to the table, while all other roles (like `anon`) will be denied access by default due to the enabled RLS and the lack of other policies granting them permission.
 
 This setup ensures that only our trusted backend services, operating with the `service_role` key, can interact with the `scan_history` table, thereby preventing direct client-side manipulation or unauthorized data access.
 
@@ -49,7 +49,7 @@ To re-implement or apply similar RLS policies for other tables, a contributor wo
     ALTER TABLE public.<your_table_name> ENABLE ROW LEVEL SECURITY;
     ```
 4.  **Define the Policy:** Create one or more `CREATE POLICY` statements to define the access rules.
-    *   **For full access to `service_role` (as done here):**
+    - **For full access to `service_role` (as done here):**
         ```sql
         CREATE POLICY "<policy_name>"
           ON public.<your_table_name>
@@ -59,7 +59,7 @@ To re-implement or apply similar RLS policies for other tables, a contributor wo
           WITH CHECK (true);
         ```
         Replace `<policy_name>` with a descriptive name (e.g., `my_table_service_only`) and `<your_table_name>` with the actual table name. `FOR ALL` covers `SELECT`, `INSERT`, `UPDATE`, `DELETE`. `TO service_role` grants access to the administrative role. `USING (true) WITH CHECK (true)` ensures the policy always applies without further conditions.
-    *   **For more granular policies (e.g., users can only see their own data):**
+    - **For more granular policies (e.g., users can only see their own data):**
         ```sql
         CREATE POLICY "users_can_view_their_own_data"
           ON public.<your_table_name>
@@ -69,9 +69,9 @@ To re-implement or apply similar RLS policies for other tables, a contributor wo
         ```
         This example allows authenticated users to `SELECT` rows where their `auth.uid()` matches the `user_id` column in the table.
 5.  **Test the Policy:** After applying the migration (e.g., by running `supabase db reset` in a local development environment or deploying), thoroughly test the RLS:
-    *   Attempt operations with the `anon` key (should fail for restricted tables).
-    *   Attempt operations with the `service_role` key (should succeed for tables where it's granted access).
-    *   Attempt operations with `authenticated` user keys, verifying they only access data permitted by their specific policies.
+    - Attempt operations with the `anon` key (should fail for restricted tables).
+    - Attempt operations with the `service_role` key (should succeed for tables where it's granted access).
+    - Attempt operations with `authenticated` user keys, verifying they only access data permitted by their specific policies.
 6.  **Review and Commit:** Ensure the migration file is clean, well-commented (like the example in this PR), and committed.
 
 ## Impact on System Architecture
@@ -91,7 +91,7 @@ The primary verification for this change was conducted through our standard migr
 
 1.  **Migration Checker Execution:** The "Pre-Deployment Migration Checker Execution" log provided in the PR proof of work confirms that the `supabase/migrations/20260607000000_add_rls_scan_history.sql` file was successfully parsed and recognized as a valid migration. This ensures the SQL commands are syntactically correct and will be applied to the database schema.
 2.  **Functional RLS Testing (Implicit):** While explicit logs of `anon` key vs. `service_role` key access attempts are not included in the PR description, the "Proof of Work" section and the checklist item "No Pull Request will be merged without proof of testing!" indicate that functional testing was performed. This would typically involve:
-    *   Attempting `SELECT`, `INSERT`, `UPDATE`, and `DELETE` operations on `public.scan_history` using a Supabase client configured with the `anon` key. All these operations are expected to fail with a permission denied error.
-    *   Attempting the same operations using a Supabase client configured with the `service_role` key. All these operations are expected to succeed, confirming that the backend retains necessary access.
+    - Attempting `SELECT`, `INSERT`, `UPDATE`, and `DELETE` operations on `public.scan_history` using a Supabase client configured with the `anon` key. All these operations are expected to fail with a permission denied error.
+    - Attempting the same operations using a Supabase client configured with the `service_role` key. All these operations are expected to succeed, confirming that the backend retains necessary access.
 
 Edge cases for RLS typically involve complex policy interactions or misconfigurations. However, for this specific policy, which is a straightforward blanket restriction to `service_role`, the primary edge case would be if the `service_role` itself were somehow compromised or if the backend application failed to use the `service_key` correctly. These are addressed by broader system security practices and backend configuration, not by the RLS policy itself. The policy's simplicity makes it less prone to subtle logical errors.

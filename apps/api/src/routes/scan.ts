@@ -657,12 +657,11 @@ router.post("/match", async (req: Request, res: Response) => {
 
     try {
         const keyword = query.trim().split(/\s+/)[0];
+        const safeKeyword = escapeIlike(keyword);
         const { data, error } = await supabase
             .from("medicines")
             .select("brand_name, generic_name")
-            .or(
-                `brand_name.ilike.%${escapeIlike(keyword)}%,generic_name.ilike.%${escapeIlike(keyword)}%`
-            )
+            .or(`brand_name.ilike.%${safeKeyword}%,generic_name.ilike.%${safeKeyword}%`)
             .limit(100);
 
         if (error) {
