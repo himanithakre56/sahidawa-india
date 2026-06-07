@@ -14,9 +14,10 @@ const languages = [
     { code: "mr", label: "Marathi", native: "मराठी" },
     { code: "gu", label: "Gujarati", native: "ગુજરાતી" },
     { code: "ur", label: "Urdu", native: "اردو" },
-    { code: "od", label: "Odia", native: "ଓଡ଼ିଆ" },
+    { code: "or", label: "Odia", native: "ଓଡ଼ିଆ" },
     { code: "kn", label: "Kannada", native: "ಕನ್ನಡ" },
     { code: "pa", label: "Punjabi", native: "ਪੰਜਾਬੀ" },
+    { code: "as", label: "Assamese", native: "অসমীয়া" },
 ];
 
 export default function LanguageSwitcher() {

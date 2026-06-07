@@ -13,6 +13,18 @@ export async function POST(req: NextRequest) {
         }
 
         if (file.size > MAX_UPLOAD_SIZE) {
+            const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+            if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+                return NextResponse.json(
+                    {
+                        error: "invalid_file_type",
+                        message: "Invalid file type. Only JPEG, PNG, and WEBP images are allowed.",
+                        allowedTypes: ALLOWED_MIME_TYPES,
+                        receivedType: file.type,
+                    },
+                    { status: 400 }
+                );
+            }
             return NextResponse.json(
                 {
                     error: "file_too_large",
@@ -38,8 +50,14 @@ export async function POST(req: NextRequest) {
         const timestamp = Math.round(new Date().getTime() / 1000).toString();
         const folder = "sahidawa/reports";
 
+        // Store each report image at cloud_name/sahidawa/reports/{batch_number}_{timestamp}.
+        // Sanitise the batch number so it cannot inject extra folder paths into the public_id.
+        const rawBatchNumber = (formData.get("batch_number") as string | null) ?? "";
+        const batchNumber = rawBatchNumber.replace(/[^A-Za-z0-9._-]/g, "") || "report";
+        const publicId = `${batchNumber}_${timestamp}`;
+
         // correct signature format — sorted params + secret appended at end
-        const paramsToSign = `folder=${folder}&signature_algorithm=sha256&timestamp=${timestamp}${apiSecret}`;
+        const paramsToSign = `folder=${folder}&public_id=${publicId}&signature_algorithm=sha256&timestamp=${timestamp}${apiSecret}`;
         const signature = crypto.createHash("sha256").update(paramsToSign).digest("hex");
 
         const cloudinaryFormData = new FormData();
@@ -49,6 +67,7 @@ export async function POST(req: NextRequest) {
         cloudinaryFormData.append("signature_algorithm", "sha256");
         cloudinaryFormData.append("signature", signature);
         cloudinaryFormData.append("folder", folder);
+        cloudinaryFormData.append("public_id", publicId);
 
         const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
             method: "POST",
