@@ -469,7 +469,9 @@
         "importDateError": "Invalid date format found in backup. All dates must be in YYYY-MM-DD format.",
         "statusExpired": "Expired",
         "statusExpiringSoon": "Expiring soon ({days}d)",
-        "statusSafe": "Safe"
+        "statusSafe": "Safe",
+        "deleteSelected": "Delete Selected",
+        "selectMedicine": "Select {name}"
     },
     "Login": {
         "brandSubtitle": "Medicine safety platform",
