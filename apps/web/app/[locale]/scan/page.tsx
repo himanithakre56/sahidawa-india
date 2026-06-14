@@ -586,6 +586,12 @@ export default function ScanPage() {
         async (result: VerifyResult, fallbackBrandName?: string) => {
             if (!result.verified) {
                 setVerifyResult(result);
+                const entry = buildLocalScanHistoryEntry({
+                    result,
+                    source: "manual",
+                });
+
+                await saveLocalScanHistoryEntry(entry);
 
                 void saveScanHistory({
                     id: crypto.randomUUID(),
@@ -604,6 +610,12 @@ export default function ScanPage() {
                 const medicineName = result.medicine.brand_name || fallbackBrandName;
                 if (!medicineName) {
                     setVerifyResult(result);
+                    const entry = buildLocalScanHistoryEntry({
+                        result,
+                        source: "manual",
+                    });
+
+                    await saveLocalScanHistoryEntry(entry);
 
                     void saveScanHistory({
                         id: crypto.randomUUID(),
@@ -626,6 +638,12 @@ export default function ScanPage() {
                     setShowResult(true);
                 } else {
                     setVerifyResult(result);
+                    const entry = buildLocalScanHistoryEntry({
+                        result,
+                        source: "manual",
+                    });
+
+                    await saveLocalScanHistoryEntry(entry);
 
                     void saveScanHistory({
                         id: crypto.randomUUID(),
@@ -641,6 +659,12 @@ export default function ScanPage() {
             } catch (error) {
                 console.error("LASA check error:", error);
                 setVerifyResult(result);
+                const entry = buildLocalScanHistoryEntry({
+                    result,
+                    source: "manual",
+                });
+
+                await saveLocalScanHistoryEntry(entry);
 
                 void saveScanHistory({
                     id: crypto.randomUUID(),
@@ -657,9 +681,15 @@ export default function ScanPage() {
         []
     );
 
-    const handleConfirmScanned = () => {
+    const handleConfirmScanned = async () => {
         if (pendingVerifyResult) {
             setVerifyResult(pendingVerifyResult);
+            const entry = buildLocalScanHistoryEntry({
+                result: pendingVerifyResult,
+                source: "barcode",
+            });
+
+            await saveLocalScanHistoryEntry(entry); // ✅ Now valid
             void saveScanHistory({
                 id: crypto.randomUUID(),
                 timestamp: Date.now(),

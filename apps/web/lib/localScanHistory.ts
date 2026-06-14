@@ -1,355 +1,182 @@
-import type { ScanMeta, VerifyResult } from "./api";
+import { type VerifyResult } from "@/lib/api";
 
-export const DEFAULT_LOCAL_SCAN_HISTORY_PAGE_SIZE = 20;
-export const MAX_LOCAL_SCAN_HISTORY_PAGE_SIZE = 50;
+export type LocalScanHistorySource = "barcode" | "manual" | "ocr";
 
-const DB_NAME = "sahidawa-local-scan-history";
-const DB_VERSION = 1;
-const STORE_NAME = "scan-history";
-const SCANNED_AT_INDEX = "scannedAt";
-
-export type LocalScanHistorySource = "manual" | "barcode" | "photo";
-export type LocalScanHistoryStatus =
-    | "verified"
-    | "suspicious"
-    | "counterfeit"
-    | "unverified"
-    | "error";
-
-export type LocalScanHistoryEntry = {
+export interface LocalScanHistoryEntry {
     id: string;
-    scannedAt: string;
-    query: string;
+    scannedAt: number; // timestamp in ms
+    medicineName: string;
     source: LocalScanHistorySource;
-    status: LocalScanHistoryStatus;
-    brandName?: string;
-    genericName?: string;
-    manufacturer?: string;
-    batchNumber?: string;
-    expiryDate?: string | null;
-    cdscoApprovalStatus?: string;
-    isCounterfeitAlert?: boolean;
-    message?: string;
-    scanMeta?: ScanMeta;
-};
-
-export type LocalScanHistoryPage = {
-    entries: LocalScanHistoryEntry[];
-    page: number;
-    pageSize: number;
-    total: number;
-    totalPages: number;
-    hasPreviousPage: boolean;
-    hasNextPage: boolean;
-};
-
-type PageRequest = {
-    page?: number;
-    pageSize?: number;
-};
-
-export type NormalizedLocalScanHistoryPageRequest = {
-    page: number;
-    pageSize: number;
-    offset: number;
-};
-
-export type BuildLocalScanHistoryEntryOptions = {
-    query: string;
-    source: LocalScanHistorySource;
-    result?: VerifyResult;
+    result: VerifyResult | null;
     errorMessage?: string;
-    fallbackBrandName?: string;
-    fallbackBatchNumber?: string;
-    fallbackExpiryDate?: string | null;
-    scannedAt?: string;
+    status: "VERIFIED" | "FAKE" | "SUSPICIOUS";
+}
+
+export interface BuildLocalScanHistoryEntryOptions {
     id?: string;
-};
-
-export function normalizeLocalScanHistoryPageRequest({
-    page,
-    pageSize,
-}: PageRequest = {}): NormalizedLocalScanHistoryPageRequest {
-    const normalizedPage =
-        typeof page === "number" && Number.isFinite(page) ? Math.max(1, Math.floor(page)) : 1;
-
-    const normalizedPageSize =
-        typeof pageSize === "number" && Number.isFinite(pageSize) && pageSize > 0
-            ? Math.min(MAX_LOCAL_SCAN_HISTORY_PAGE_SIZE, Math.floor(pageSize))
-            : DEFAULT_LOCAL_SCAN_HISTORY_PAGE_SIZE;
-
-    return {
-        page: normalizedPage,
-        pageSize: normalizedPageSize,
-        offset: (normalizedPage - 1) * normalizedPageSize,
-    };
+    scannedAt?: number;
+    result: VerifyResult;
+    source: LocalScanHistorySource;
+    errorMessage?: string;
 }
 
-export function createEmptyLocalScanHistoryPage(
-    page = 1,
-    pageSize = DEFAULT_LOCAL_SCAN_HISTORY_PAGE_SIZE
-): LocalScanHistoryPage {
-    return {
-        entries: [],
-        page,
-        pageSize,
-        total: 0,
-        totalPages: 0,
-        hasPreviousPage: false,
-        hasNextPage: false,
-    };
+// Storage key for IndexedDB
+const DB_NAME = "SahiDawa";
+const STORE_NAME = "scanHistory";
+const DB_VERSION = 1;
+
+/**
+ * Initialize IndexedDB for scan history storage
+ */
+function getDB(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+
+        request.onupgradeneeded = (event) => {
+            const db = (event.target as IDBOpenDBRequest).result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
+                store.createIndex("scannedAt", "scannedAt", { unique: false });
+            }
+        };
+    });
 }
 
-export function buildLocalScanHistoryEntry({
-    query,
-    source,
-    result,
-    errorMessage,
-    fallbackBrandName,
-    fallbackBatchNumber,
-    fallbackExpiryDate,
-    scannedAt = new Date().toISOString(),
-    id,
-}: BuildLocalScanHistoryEntryOptions): LocalScanHistoryEntry {
-    const trimmedQuery = query.trim();
-    const baseEntry = {
-        id: id ?? createLocalScanHistoryId(scannedAt),
-        scannedAt,
-        query: trimmedQuery,
-        source,
-    };
-
-    if (errorMessage) {
-        return {
-            ...baseEntry,
-            status: "error",
-            batchNumber: fallbackBatchNumber || trimmedQuery || undefined,
-            brandName: fallbackBrandName || undefined,
-            expiryDate: fallbackExpiryDate,
-            message: errorMessage,
-        };
-    }
-
-    if (!result) {
-        return {
-            ...baseEntry,
-            status: "error",
-            batchNumber: fallbackBatchNumber || trimmedQuery || undefined,
-            brandName: fallbackBrandName || undefined,
-            expiryDate: fallbackExpiryDate,
-            message: "Verification result unavailable",
-        };
-    }
-
-    if (!result.verified) {
-        return {
-            ...baseEntry,
-            status: "unverified",
-            batchNumber: fallbackBatchNumber || trimmedQuery || undefined,
-            brandName: fallbackBrandName || undefined,
-            expiryDate: fallbackExpiryDate,
-            message: result.message,
-            scanMeta: result.scanMeta,
-        };
-    }
-
-    const medicine = result.medicine;
-    const status: LocalScanHistoryStatus = medicine.is_counterfeit_alert
-        ? "counterfeit"
-        : result.scanMeta?.suspicious
-          ? "suspicious"
-          : "verified";
-
-    return {
-        ...baseEntry,
-        status,
-        brandName: medicine.brand_name || fallbackBrandName || undefined,
-        genericName: medicine.generic_name || undefined,
-        manufacturer: medicine.manufacturer || undefined,
-        batchNumber: medicine.batch_number || fallbackBatchNumber || trimmedQuery || undefined,
-        expiryDate: medicine.expiry_date,
-        cdscoApprovalStatus: medicine.cdsco_approval_status,
-        isCounterfeitAlert: medicine.is_counterfeit_alert,
-        scanMeta: result.scanMeta,
-    };
-}
-
-export async function saveLocalScanHistoryEntry(entry: LocalScanHistoryEntry): Promise<void> {
-    const indexedDb = getIndexedDb();
-    if (!indexedDb) return;
-
-    const db = await openLocalScanHistoryDb(indexedDb);
+/**
+ * Save a scan history entry to IndexedDB
+ */
+export async function saveLocalScanHistoryEntry(entry: LocalScanHistoryEntry): Promise<string> {
     try {
-        await putEntry(db, entry);
-    } finally {
-        db.close();
-    }
-}
+        const db = await getDB();
+        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        store.put(entry);
 
-export async function getLocalScanHistoryPage(
-    page = 1,
-    pageSize = DEFAULT_LOCAL_SCAN_HISTORY_PAGE_SIZE
-): Promise<LocalScanHistoryPage> {
-    const request = normalizeLocalScanHistoryPageRequest({ page, pageSize });
-    const indexedDb = getIndexedDb();
-    if (!indexedDb) {
-        return createEmptyLocalScanHistoryPage(request.page, request.pageSize);
-    }
-
-    const db = await openLocalScanHistoryDb(indexedDb);
-    try {
-        const total = await countEntries(db);
-        if (total === 0) {
-            return createEmptyLocalScanHistoryPage(request.page, request.pageSize);
-        }
-
-        const totalPages = Math.ceil(total / request.pageSize);
-        const boundedPage = Math.min(request.page, totalPages);
-        const boundedRequest = normalizeLocalScanHistoryPageRequest({
-            page: boundedPage,
-            pageSize: request.pageSize,
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => resolve(entry.id);
+            transaction.onerror = () => reject(transaction.error);
         });
-        const entries = await readEntriesPage(db, boundedRequest.offset, boundedRequest.pageSize);
-
-        return {
-            entries,
-            page: boundedPage,
-            pageSize: boundedRequest.pageSize,
-            total,
-            totalPages,
-            hasPreviousPage: boundedPage > 1,
-            hasNextPage: boundedPage < totalPages,
-        };
-    } finally {
-        db.close();
+    } catch (error) {
+        console.error("Failed to save scan history:", error);
+        // Fallback to localStorage
+        try {
+            const existing = localStorage.getItem("sahidawa_scan_history") || "[]";
+            const history = JSON.parse(existing) as LocalScanHistoryEntry[];
+            history.push(entry);
+            localStorage.setItem("sahidawa_scan_history", JSON.stringify(history.slice(-100))); // Keep last 100
+            return entry.id;
+        } catch (e) {
+            console.error("Fallback localStorage also failed:", e);
+            throw error;
+        }
     }
 }
 
-export async function clearLocalScanHistory(): Promise<void> {
-    const indexedDb = getIndexedDb();
-    if (!indexedDb) return;
-
-    const db = await openLocalScanHistoryDb(indexedDb);
+/**
+ * Retrieve all cached scan history entries
+ */
+export async function getLocalScanHistoryEntries(): Promise<LocalScanHistoryEntry[]> {
     try {
-        await clearEntries(db);
-    } finally {
-        db.close();
-    }
-}
-
-function createLocalScanHistoryId(scannedAt: string): string {
-    const timestamp = Date.parse(scannedAt);
-    const prefix = Number.isFinite(timestamp) ? timestamp : Date.now();
-
-    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-        return `${prefix}-${crypto.randomUUID()}`;
-    }
-
-    return `${prefix}-${Math.random().toString(36).slice(2)}`;
-}
-
-function getIndexedDb(): IDBFactory | null {
-    if (typeof window === "undefined") return null;
-    return window.indexedDB ?? null;
-}
-
-function openLocalScanHistoryDb(indexedDb: IDBFactory): Promise<IDBDatabase> {
-    return new Promise((resolve, reject) => {
-        const request = indexedDb.open(DB_NAME, DB_VERSION);
-
-        request.onupgradeneeded = () => {
-            const db = request.result;
-            const store = db.objectStoreNames.contains(STORE_NAME)
-                ? request.transaction?.objectStore(STORE_NAME)
-                : db.createObjectStore(STORE_NAME, { keyPath: "id" });
-
-            if (store && !store.indexNames.contains(SCANNED_AT_INDEX)) {
-                store.createIndex(SCANNED_AT_INDEX, SCANNED_AT_INDEX, { unique: false });
-            }
-        };
-        request.onerror = () => reject(request.error ?? new Error("Unable to open scan history"));
-        request.onsuccess = () => resolve(request.result);
-    });
-}
-
-function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
-    return new Promise((resolve, reject) => {
-        request.onerror = () => reject(request.error ?? new Error("IndexedDB request failed"));
-        request.onsuccess = () => resolve(request.result);
-    });
-}
-
-function putEntry(db: IDBDatabase, entry: LocalScanHistoryEntry): Promise<IDBValidKey> {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    return requestToPromise(store.put(entry));
-}
-
-function clearEntries(db: IDBDatabase): Promise<undefined> {
-    const transaction = db.transaction(STORE_NAME, "readwrite");
-    const store = transaction.objectStore(STORE_NAME);
-    return requestToPromise(store.clear());
-}
-
-function countEntries(db: IDBDatabase): Promise<number> {
-    const transaction = db.transaction(STORE_NAME, "readonly");
-    const store = transaction.objectStore(STORE_NAME);
-    return requestToPromise(store.count());
-}
-
-function readEntriesPage(
-    db: IDBDatabase,
-    offset: number,
-    pageSize: number
-): Promise<LocalScanHistoryEntry[]> {
-    return new Promise((resolve, reject) => {
-        const entries: LocalScanHistoryEntry[] = [];
+        const db = await getDB();
         const transaction = db.transaction(STORE_NAME, "readonly");
-        const index = transaction.objectStore(STORE_NAME).index(SCANNED_AT_INDEX);
-        const request = index.openCursor(null, "prev");
-        let advancedToOffset = offset === 0;
-        let settled = false;
+        const store = transaction.objectStore(STORE_NAME);
+        const request = store.getAll();
 
-        const settle = (value: LocalScanHistoryEntry[]) => {
-            if (!settled) {
-                settled = true;
-                resolve(value);
-            }
-        };
+        return new Promise((resolve, reject) => {
+            request.onsuccess = () => resolve(request.result as LocalScanHistoryEntry[]);
+            request.onerror = () => reject(request.error);
+        });
+    } catch (error) {
+        console.error("Failed to retrieve scan history from IndexedDB:", error);
+        // Fallback to localStorage
+        try {
+            const existing = localStorage.getItem("sahidawa_scan_history") || "[]";
+            return JSON.parse(existing) as LocalScanHistoryEntry[];
+        } catch (e) {
+            console.error("Fallback localStorage also failed:", e);
+            return [];
+        }
+    }
+}
 
-        request.onerror = () => {
-            if (!settled) {
-                settled = true;
-                reject(request.error ?? new Error("Unable to read scan history"));
-            }
-        };
-        transaction.onerror = () => {
-            if (!settled) {
-                settled = true;
-                reject(transaction.error ?? new Error("Unable to read scan history"));
-            }
-        };
-        transaction.oncomplete = () => settle(entries);
+/**
+ * Clear all cached scan history
+ */
+export async function clearLocalScanHistory(): Promise<void> {
+    try {
+        const db = await getDB();
+        const transaction = db.transaction(STORE_NAME, "readwrite");
+        const store = transaction.objectStore(STORE_NAME);
+        store.clear();
 
-        request.onsuccess = () => {
-            const cursor = request.result;
-            if (!cursor) {
-                settle(entries);
-                return;
-            }
+        return new Promise((resolve, reject) => {
+            transaction.oncomplete = () => resolve();
+            transaction.onerror = () => reject(transaction.error);
+        });
+    } catch (error) {
+        console.error("Failed to clear scan history:", error);
+        // Fallback to localStorage
+        localStorage.removeItem("sahidawa_scan_history");
+    }
+}
 
-            if (!advancedToOffset) {
-                advancedToOffset = true;
-                cursor.advance(offset);
-                return;
-            }
+/**
+ * Build a local scan history entry from API result
+ */
+export function buildLocalScanHistoryEntry(
+    options: BuildLocalScanHistoryEntryOptions
+): LocalScanHistoryEntry {
+    const id = options.id || crypto.randomUUID();
+    const scannedAt = options.scannedAt || Date.now();
+    const status = getStatusFromResult(options.result);
 
-            entries.push(cursor.value as LocalScanHistoryEntry);
-            if (entries.length >= pageSize) {
-                settle(entries);
-                return;
-            }
-            cursor.continue();
-        };
-    });
+    const medicineName =
+        options.result.verified && options.result.medicine
+            ? options.result.medicine.brand_name || "Unknown"
+            : options.errorMessage || "Unknown medicine";
+
+    return {
+        id,
+        scannedAt,
+        medicineName,
+        source: options.source,
+        result: options.result,
+        errorMessage: options.errorMessage,
+        status,
+    };
+}
+
+/**
+ * Extract status from verification result
+ */
+function getStatusFromResult(result: VerifyResult): "VERIFIED" | "FAKE" | "SUSPICIOUS" {
+    if (!result.verified) {
+        return "SUSPICIOUS";
+    }
+
+    if (result.medicine?.is_counterfeit_alert) {
+        return "FAKE";
+    }
+
+    return "VERIFIED";
+}
+
+/**
+ * Get recent scans (last N entries)
+ */
+export async function getRecentScans(limit: number = 10): Promise<LocalScanHistoryEntry[]> {
+    const all = await getLocalScanHistoryEntries();
+    return all.sort((a, b) => b.scannedAt - a.scannedAt).slice(0, limit);
+}
+
+/**
+ * Search scan history by medicine name
+ */
+export async function searchScanHistory(query: string): Promise<LocalScanHistoryEntry[]> {
+    const all = await getLocalScanHistoryEntries();
+    const lowerQuery = query.toLowerCase();
+    return all.filter((entry) => entry.medicineName.toLowerCase().includes(lowerQuery));
 }
