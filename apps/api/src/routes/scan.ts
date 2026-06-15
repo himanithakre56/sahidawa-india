@@ -8,7 +8,9 @@ import { supabase } from "../db/client";
 import { getMlServiceUrl, MISSING_ML_SERVICE_URL_MESSAGE } from "../config/mlService";
 import { validateUploadSize } from "../middleware/uploadSizeValidator";
 import { uploadRateLimiter } from "../middleware/uploadRateLimit";
+import { scanQueryLimiter } from "../middleware/rateLimit";
 
+import { escapePostgrest } from "../utils/db";
 import { escapeIlike } from "../utils/db";
 
 const router = Router();
@@ -504,10 +506,12 @@ router.post("/extract", uploadRateLimiter, validateUploadSize, (req: Request, re
                         .select(
                             "id, brand_name, generic_name, manufacturer, batch_number, " +
                                 "expiry_date, cdsco_approval_status, is_counterfeit_alert, " +
+                                "is_cdsco_verified, cdsco_match_score, matched_cdsco_product, " +
+                                "matched_cdsco_manufacturer, product_match_score, manufacturer_match_score, " +
                                 "composition, mrp, jan_aushadhi_price"
                         )
                         .or(
-                            `brand_name.ilike.%${escapeIlike(matchedName)}%,generic_name.ilike.%${escapeIlike(matchedName)}%`
+                            `brand_name.ilike."%${escapePostgrest(matchedName!)}%",generic_name.ilike."%${escapePostgrest(matchedName!)}%"`
                         )
                         .limit(1)
                         .maybeSingle();
@@ -549,6 +553,7 @@ router.post("/extract", uploadRateLimiter, validateUploadSize, (req: Request, re
             let medicineResponse = null;
             if (medicineData) {
                 medicineResponse = {
+                    id: medicineData.id,
                     brand_name: medicineData.brand_name,
                     generic_name: medicineData.generic_name,
                     manufacturer: medicineData.manufacturer,
@@ -557,6 +562,12 @@ router.post("/extract", uploadRateLimiter, validateUploadSize, (req: Request, re
                     expiry_date: parsedExpiry || medicineData.expiry_date,
                     cdsco_approval_status: medicineData.cdsco_approval_status,
                     is_counterfeit_alert: medicineData.is_counterfeit_alert,
+                    is_cdsco_verified: medicineData.is_cdsco_verified,
+                    cdsco_match_score: medicineData.cdsco_match_score,
+                    matched_cdsco_product: medicineData.matched_cdsco_product,
+                    matched_cdsco_manufacturer: medicineData.matched_cdsco_manufacturer,
+                    product_match_score: medicineData.product_match_score,
+                    manufacturer_match_score: medicineData.manufacturer_match_score,
                     // Pricing — helps citizens compare branded vs Jan Aushadhi price
                     mrp: medicineData.mrp ?? null,
                     jan_aushadhi_price: medicineData.jan_aushadhi_price ?? null,
@@ -621,7 +632,7 @@ router.post("/extract", uploadRateLimiter, validateUploadSize, (req: Request, re
  *       200:
  *         description: Match suggestions found
  */
-router.post("/match", async (req: Request, res: Response) => {
+router.post("/match", scanQueryLimiter, async (req: Request, res: Response) => {
     const { query } = req.body;
     if (!query || typeof query !== "string") {
         res.status(400).json({ error: "query parameter is required and must be a string" });
@@ -687,7 +698,7 @@ router.post("/match", async (req: Request, res: Response) => {
  *       200:
  *         description: Medicine verified successfully
  */
-router.post("/verify-brand", async (req: Request, res: Response) => {
+router.post("/verify-brand", scanQueryLimiter, async (req: Request, res: Response) => {
     const { brandName } = req.body;
     if (!brandName || typeof brandName !== "string") {
         res.status(400).json({ error: "brandName is required and must be a string" });
@@ -698,10 +709,10 @@ router.post("/verify-brand", async (req: Request, res: Response) => {
         const { data, error } = await supabase
             .from("medicines")
             .select(
-                "brand_name, generic_name, manufacturer, batch_number, expiry_date, cdsco_approval_status, is_counterfeit_alert"
+                "id, brand_name, generic_name, manufacturer, batch_number, expiry_date, cdsco_approval_status, is_counterfeit_alert, is_cdsco_verified, cdsco_match_score, matched_cdsco_product, matched_cdsco_manufacturer, product_match_score, manufacturer_match_score"
             )
             .or(
-                `brand_name.ilike.%${escapeIlike(brandName)}%,generic_name.ilike.%${escapeIlike(brandName)}%`
+                `brand_name.ilike."%${escapePostgrest(brandName)}%",generic_name.ilike."%${escapePostgrest(brandName)}%"`
             )
             .limit(1)
             .maybeSingle();
@@ -726,6 +737,7 @@ router.post("/verify-brand", async (req: Request, res: Response) => {
         res.status(200).json({
             verified: true,
             medicine: {
+                id: data.id,
                 brand_name: data.brand_name,
                 generic_name: data.generic_name,
                 manufacturer: data.manufacturer,
@@ -733,6 +745,12 @@ router.post("/verify-brand", async (req: Request, res: Response) => {
                 expiry_date: data.expiry_date,
                 cdsco_approval_status: data.cdsco_approval_status,
                 is_counterfeit_alert: data.is_counterfeit_alert,
+                is_cdsco_verified: data.is_cdsco_verified,
+                cdsco_match_score: data.cdsco_match_score,
+                matched_cdsco_product: data.matched_cdsco_product,
+                matched_cdsco_manufacturer: data.matched_cdsco_manufacturer,
+                product_match_score: data.product_match_score,
+                manufacturer_match_score: data.manufacturer_match_score,
             },
         });
     } catch (err) {

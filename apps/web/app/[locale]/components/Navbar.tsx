@@ -16,6 +16,7 @@ import {
     Camera,
     Clock,
     ShieldCheck,
+    Calculator,
 } from "lucide-react";
 import { Link, usePathname } from "@/i18n/routing";
 import { useTranslations } from "next-intl";
@@ -174,7 +175,7 @@ export default function Navbar() {
 
                     {/* Center — Desktop Nav Links */}
                     <nav
-                        className="ml-6 hidden items-center justify-center gap-6 text-sm font-semibold text-(--color-text-secondary) lg:flex"
+                        className="hidden items-center justify-center gap-3 text-sm font-semibold text-(--color-text-secondary) lg:flex xl:gap-6"
                         aria-label="Main navigation"
                     >
                         <Link href="/" className={desktopNavLinkClassName}>
@@ -189,6 +190,12 @@ export default function Navbar() {
                         </Link>
                         <Link href="/map" className={desktopNavLinkClassName}>
                             {tNav("pharmacy_map")}
+                        </Link>
+                        <Link
+                            href="/calculator"
+                            className={`${desktopNavLinkClassName} flex items-center gap-1`}
+                        >
+                            <Calculator size={14} /> {tNav("calculator")}
                         </Link>
                         <Link
                             href="/scheme-eligibility"
@@ -211,7 +218,7 @@ export default function Navbar() {
                     </nav>
 
                     {/* Right — Action Controls Container */}
-                    <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3">
+                    <div className="flex flex-1 shrink-0 items-center justify-end gap-2 sm:gap-3">
                         {/* Health Companion Trigger */}
                         <div className="group relative flex items-center">
                             <Link
@@ -282,6 +289,14 @@ export default function Navbar() {
                                             >
                                                 <MapPin size={14} />
                                                 {tNav("pharmacy_map")}
+                                            </Link>
+                                            <Link
+                                                href="/calculator"
+                                                onClick={() => setIsMenuOpen(false)}
+                                                className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                                            >
+                                                <Calculator size={14} />
+                                                {tNav("calculator")}
                                             </Link>
                                             <Link
                                                 href="/scheme-eligibility"
