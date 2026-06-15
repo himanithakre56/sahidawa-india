@@ -22,5 +22,15 @@ export async function recordScanHistory(result: VerifyResult, fallbackBrandName?
         timestamp: Date.now(),
         medicineName: getScanHistoryMedicineName(result, fallbackBrandName),
         status: getScanHistoryStatus(result),
+
+        manufacturer: result.verified ? result.medicine.manufacturer : undefined,
+
+        genericName: result.verified ? result.medicine.generic_name : undefined,
+
+        batchNumber: result.verified ? result.medicine.batch_number : undefined,
+
+        expiryDate: result.verified ? result.medicine.expiry_date : undefined,
+
+        counterfeit: result.verified ? result.medicine.is_counterfeit_alert : undefined,
     });
 }

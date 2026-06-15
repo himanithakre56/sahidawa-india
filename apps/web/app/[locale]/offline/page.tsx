@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { getScanHistory, type ScanHistoryEntry } from "@/lib/db/scanHistory";
 import { useTranslations } from "next-intl";
 import {
     WifiOff,
@@ -22,6 +23,7 @@ export default function OfflinePage() {
     const [isRetrying, setIsRetrying] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
     const [showReconnected, setShowReconnected] = useState(false);
+    const [history, setHistory] = useState<ScanHistoryEntry[]>([]);
 
     // Sync initial state from navigator.onLine after mount
     useEffect(() => {
@@ -44,6 +46,22 @@ export default function OfflinePage() {
             window.removeEventListener("online", handleOnline);
             window.removeEventListener("offline", handleOffline);
         };
+    }, []);
+
+    useEffect(() => {
+        async function loadHistory() {
+            try {
+                const data = await getScanHistory();
+
+                const sorted = data.sort((a, b) => b.timestamp - a.timestamp);
+
+                setHistory(sorted);
+            } catch (error) {
+                console.error("Failed to load offline history:", error);
+            }
+        }
+
+        loadHistory();
     }, []);
 
     const handleRetry = useCallback(() => {
@@ -159,6 +177,70 @@ export default function OfflinePage() {
                         ))}
                     </div>
                 </div>
+                {/* Offline Scan History */}
+                {history.length > 0 && (
+                    <div className="mt-10 border-t border-slate-800 pt-8 text-left">
+                        <h2 className="mb-4 text-center text-lg font-semibold text-white">
+                            Offline Scan History
+                        </h2>
+                        <div className="max-h-72 space-y-3 overflow-y-auto">
+                            {history.map((item) => (
+                                <div
+                                    key={item.id}
+                                    className="rounded-xl border border-slate-700 bg-slate-800/70 p-4 backdrop-blur-sm"
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex-1">
+                                            <h3 className="font-medium text-white">
+                                                {item.medicineName}
+                                            </h3>
+
+                                            {item.genericName && (
+                                                <p className="mt-1 text-sm text-slate-400">
+                                                    Generic: {item.genericName}
+                                                </p>
+                                            )}
+
+                                            {item.manufacturer && (
+                                                <p className="text-xs text-slate-500">
+                                                    Manufacturer: {item.manufacturer}
+                                                </p>
+                                            )}
+
+                                            {item.batchNumber && (
+                                                <p className="text-xs text-slate-500">
+                                                    Batch: {item.batchNumber}
+                                                </p>
+                                            )}
+
+                                            {item.expiryDate && (
+                                                <p className="text-xs text-slate-500">
+                                                    Expiry: {item.expiryDate}
+                                                </p>
+                                            )}
+
+                                            <p className="mt-2 text-xs text-slate-500">
+                                                {new Date(item.timestamp).toLocaleString()}
+                                            </p>
+                                        </div>
+
+                                        <span
+                                            className={`rounded-full px-2 py-1 text-xs font-medium ${
+                                                item.status?.toLowerCase() === "verified"
+                                                    ? "bg-emerald-500/20 text-emerald-300"
+                                                    : item.status?.toLowerCase() === "fake"
+                                                      ? "bg-red-500/20 text-red-300"
+                                                      : "bg-amber-500/20 text-amber-300"
+                                            }`}
+                                        >
+                                            {item.counterfeit ? "Counterfeit Alert" : item.status}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Brand footer */}
                 <p className="mt-8 text-xs text-slate-600">{t("footer")}</p>

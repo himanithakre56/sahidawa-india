@@ -8,6 +8,11 @@ export interface ScanHistoryEntry {
     timestamp: number;
     medicineName: string;
     status: string;
+    manufacturer?: string;
+    genericName?: string;
+    batchNumber?: string;
+    expiryDate?: string | null;
+    counterfeit?: boolean;
 }
 
 let dbPromise: ReturnType<typeof openDB> | null = null;
