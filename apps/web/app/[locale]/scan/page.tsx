@@ -368,8 +368,15 @@ export default function ScanPage() {
                                 <button
                                     onClick={handleDismissResult}
                                     className="absolute top-4 right-4 z-40 rounded-full bg-white/10 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+                                    aria-label="Close verification result (Press Escape)"
+                                    title="Close result (Esc)"
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Escape") {
+                                            handleDismissResult();
+                                        }
+                                    }}
                                 >
-                                    <X size={24} />
+                                    <X size={24} aria-hidden="true" />
                                 </button>
                                 {verifyError && (
                                     <ErrorResult
@@ -448,7 +455,11 @@ export default function ScanPage() {
                     onSubmit={handleBatchSubmit}
                     className="flex w-full max-w-sm flex-col gap-3 sm:flex-row"
                 >
+                    <label htmlFor="batch-input" className="sr-only">
+                        Enter batch number
+                    </label>
                     <input
+                        id="batch-input"
                         type="text"
                         value={batchInput}
                         onChange={(e) => setBatchInput(e.target.value)}
@@ -459,8 +470,16 @@ export default function ScanPage() {
                         type="submit"
                         disabled={isScanning || isOffline}
                         className="flex items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 py-3 text-sm font-bold text-white shadow-lg transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label={
+                            isScanning
+                                ? "Verifying medicine..."
+                                : isOffline
+                                  ? "Verify button disabled - offline"
+                                  : "Verify medicine batch number"
+                        }
+                        aria-busy={isScanning}
                     >
-                        <Search size={18} />
+                        <Search size={18} aria-hidden="true" />
                         {isOffline ? "Offline" : "Verify"}
                     </button>
                 </form>
@@ -485,8 +504,14 @@ export default function ScanPage() {
                                 ? "bg-red-500 text-white hover:bg-red-400"
                                 : "bg-emerald-500 text-white hover:bg-emerald-400"
                         }`}
+                        aria-label={
+                            isCameraActive
+                                ? "Stop barcode scanner camera"
+                                : "Start barcode scanner camera"
+                        }
+                        aria-pressed={isCameraActive}
                     >
-                        <ScanLine size={18} />
+                        <ScanLine size={18} aria-hidden="true" />
                         {isCameraActive ? "Stop Scanner" : "Scan Barcode"}
                     </button>
                     <label
@@ -502,8 +527,10 @@ export default function ScanPage() {
                         className={`flex cursor-pointer items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-black shadow-lg transition-colors hover:bg-slate-200 ${
                             isOffline ? "cursor-not-allowed opacity-50" : ""
                         }`}
+                        aria-label="Upload medicine photo from device (disabled while offline)"
+                        aria-disabled={isOffline}
                     >
-                        <Layers size={18} />
+                        <Layers size={18} aria-hidden="true" />
                         Upload Photo
                     </label>
                 </div>
