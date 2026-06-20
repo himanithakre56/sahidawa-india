@@ -8,6 +8,7 @@ import {
     anonymizeIp,
     computeReportHash,
 } from "../services/reportValidation.service";
+import { isAllowedOrigin } from "../utils/originCheck";
 
 const router = Router();
 
@@ -17,6 +18,7 @@ function getExpiryStatus(expiryDate: string | null): "green" | "yellow" | "red" 
     if (!expiryDate) return "unknown";
     const now = new Date();
     const expiry = new Date(expiryDate);
+    if (isNaN(expiry.getTime())) return "unknown";
     const diffMs = expiry.getTime() - now.getTime();
     const diffMonths = diffMs / (1000 * 60 * 60 * 24 * 30);
 
@@ -334,6 +336,11 @@ router.get("/:batchNumber", batchLimiter, async (req: Request, res: Response) =>
  *         description: Failed to submit report
  */
 router.post("/report", batchLimiter, async (req: Request, res: Response) => {
+    if (!isAllowedOrigin(req)) {
+        res.status(403).json({ error: "Access denied: unrecognized origin" });
+        return;
+    }
+
     const parsed = reportBatchSchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -362,6 +369,15 @@ router.post("/report", batchLimiter, async (req: Request, res: Response) => {
     const validation = await validateReport(reportPayload, hashedIp, null);
 
     if (!validation.passed) {
+        logger.warn({
+            message: "Batch report rejected by abuse safeguards",
+            risk_score: validation.riskScore,
+            reasons: validation.reasons,
+            ip_address: hashedIp ?? "unknown",
+            batch_number: batchNumber,
+            duplicate_group_id: validation.duplicateGroupId ?? null,
+            route: "/api/verify/batch/report",
+        });
         res.status(429).json({
             error: "Report rejected due to abuse safeguards.",
             reasons: validation.reasons,

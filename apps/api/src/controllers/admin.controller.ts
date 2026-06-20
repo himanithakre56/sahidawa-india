@@ -30,6 +30,16 @@ const paginationSchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
+interface AdminAuditLog {
+    id: string;
+    admin_id: string | null;
+    action: string;
+    target_type: "REPORT" | "MEDICINE" | "PHARMACY";
+    target_id: string;
+    details: Record<string, unknown> | string | null;
+    created_at: string;
+}
+
 export const getPendingReports = async (
     req: AuthenticatedRequest,
     res: Response
@@ -105,6 +115,12 @@ export const updateReportStatus = async (
             .single();
 
         if (error) {
+            // Return 404 when the report does not exist
+            if (error.code === "PGRST116") {
+                res.status(404).json({ error: "Report not found" });
+                return;
+            }
+
             res.status(500).json({ error: "Failed to update report" });
             return;
         }
@@ -336,7 +352,7 @@ export const getAuditLogs = async (req: AuthenticatedRequest, res: Response): Pr
             return;
         }
 
-        const formatDetails = (log: any): string => {
+        const formatDetails = (log: Pick<AdminAuditLog, "action" | "details">): string => {
             if (!log.details) return log.action;
             try {
                 const detailsObj =
@@ -353,7 +369,7 @@ export const getAuditLogs = async (req: AuthenticatedRequest, res: Response): Pr
             }
         };
 
-        const formattedLogs = (data || []).map((log: any) => ({
+        const formattedLogs = (data || []).map((log: AdminAuditLog) => ({
             ...log,
             details: formatDetails(log),
         }));
