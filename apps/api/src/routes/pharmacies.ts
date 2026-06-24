@@ -148,6 +148,10 @@ const boundsQuerySchema = z
         west: z.coerce.number().min(-180).max(180),
         north: z.coerce.number().min(-90).max(90),
         east: z.coerce.number().min(-180).max(180),
+
+        limit: z.coerce.number().int().min(1).max(1000).default(200),
+
+        offset: z.coerce.number().int().min(0).default(0),
     })
     .refine((data) => data.south < data.north, {
         message: "South boundary must be less than North boundary",
@@ -530,7 +534,7 @@ router.get("/in-bounds", async (req: Request, res: Response, next: NextFunction)
             return;
         }
 
-        const { south, west, north, east } = result.data;
+        const { south, west, north, east, limit, offset } = result.data;
 
         const centerLat = (south + north) / 2;
         const centerLng = (west + east) / 2;
@@ -538,7 +542,14 @@ router.get("/in-bounds", async (req: Request, res: Response, next: NextFunction)
         // Primary path: PostGIS spatial query via RPC
         const { data: rpcData, error: rpcError } = await supabase.rpc(
             "get_pharmacies_in_bounds" as string,
-            { bound_south: south, bound_west: west, bound_north: north, bound_east: east }
+            {
+                bound_south: south,
+                bound_west: west,
+                bound_north: north,
+                bound_east: east,
+                query_limit: limit,
+                query_offset: offset,
+            }
         );
 
         if (!rpcError && rpcData) {
